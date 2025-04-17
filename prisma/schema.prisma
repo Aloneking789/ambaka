@@ -1,0 +1,141 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  WARD_ADMIN
+  FIELD_ENGINEER
+  AUDITOR
+  VIEWER
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole @default(VIEWER)
+  wardId    Int?
+  ward      Ward?    @relation(fields: [wardId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  progressLogs ProgressLog[]
+  auditLogs    AuditLog[]
+
+  @@index([email])
+  @@index([wardId])
+}
+
+model Ward {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users    User[]
+  projects Project[]
+
+  @@index([name])
+}
+
+model Project {
+  id        Int       @id @default(autoincrement())
+  name      String
+  tenderId  String
+  wardId    Int
+  ward      Ward      @relation(fields: [wardId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime?
+  status    String    @default("PLANNING") // PLANNING, IN_PROGRESS, COMPLETED, ON_HOLD
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  roads      Road[]
+  milestones Milestone[]
+
+  @@index([wardId])
+  @@index([tenderId])
+  @@index([status])
+}
+
+model Road {
+  id        Int      @id @default(autoincrement())
+  name      String
+  lengthKm  Float
+  latitude  Float
+  longitude Float
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  progressLogs ProgressLog[]
+
+  @@index([projectId])
+}
+
+model Milestone {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  projectId   Int
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  order       Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  progressLogs ProgressLog[]
+
+  @@index([projectId])
+  @@index([order])
+}
+
+model ProgressLog {
+  id            Int       @id @default(autoincrement())
+  milestoneId   Int
+  milestone     Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  roadId        Int
+  road          Road      @relation(fields: [roadId], references: [id], onDelete: Cascade)
+  status        String // NOT_STARTED, IN_PROGRESS, COMPLETED, BLOCKED
+  notes         String?
+  photoFilename String?
+  createdById   String
+  createdBy     User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([milestoneId])
+  @@index([roadId])
+  @@index([createdById])
+  @@index([status])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  action     String
+  entityType String
+  entityId   String
+  details    String? // JSON string
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
+}
